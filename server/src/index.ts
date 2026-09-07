@@ -20,6 +20,12 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
+const tursoUrl = process.env.TURSO_DATABASE_URL;
+const tursoToken = process.env.TURSO_AUTH_TOKEN;
+console.log(`[DB] TURSO_DATABASE_URL: ${tursoUrl ? '✅ configuré' : '❌ manquant (mode local)'}`);
+console.log(`[DB] TURSO_AUTH_TOKEN: ${tursoToken ? '✅ configuré' : '❌ manquant'}`);
+console.log(`[DB] Mode: ${tursoUrl ? 'TURSO (persistant)' : 'SQLite LOCAL (éphémère)'}`);
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
