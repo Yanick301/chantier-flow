@@ -6,7 +6,7 @@ import { Depense, Justificatif } from '../types';
 import { formatMontant, statutDepenseColors, statutDepenseLabels } from '../utils/helpers';
 import {
   ArrowLeft, Clock, CheckCircle, XCircle, AlertTriangle, Send,
-  Upload, Download, Trash2, FileText, Image, Eye,
+  Upload, Download, Trash2, FileText, Eye,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Modal from '../components/ui/Modal';
@@ -112,42 +112,6 @@ export default function DepenseDetail() {
     finally { setUploading(false); }
   };
 
-  const handlePreview = async (j: Justificatif) => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`/api/justificatifs/${j.id}/fichier`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!response.ok) throw new Error('Erreur chargement');
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      setPreviewUrl(url);
-    } catch (error: any) {
-      toast.error(error.message || 'Erreur chargement');
-    }
-  };
-
-  const handleDownload = async (j: Justificatif) => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`/api/justificatifs/${j.id}/fichier`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!response.ok) throw new Error('Erreur téléchargement');
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = window.document.createElement('a');
-      a.href = url;
-      a.download = j.nom_original;
-      window.document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      a.remove();
-    } catch (error: any) {
-      toast.error(error.message || 'Erreur téléchargement');
-    }
-  };
-
   const handleDeleteJustificatif = async () => {
     if (!confirmSupprimer) return;
     try {
@@ -233,48 +197,92 @@ export default function DepenseDetail() {
             <p className="text-slate-400 text-sm">Aucun justificatif</p>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {justificatifs.map((j) => (
-              <div key={j.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${j.type_fichier === 'pdf' ? 'bg-red-100' : 'bg-blue-100'}`}>
-                    {j.type_fichier === 'pdf'
-                      ? <FileText className="w-4 h-4 text-red-600" />
-                      : <Image className="w-4 h-4 text-blue-600" />
-                    }
+              <div key={j.id} className="bg-slate-50 rounded-xl overflow-hidden">
+                {j.type_fichier === 'image' ? (
+                  <div>
+                    <img
+                      src={j.nom_fichier}
+                      alt={j.nom_original}
+                      className="w-full max-h-64 object-contain bg-slate-100 cursor-pointer"
+                      onClick={() => setPreviewUrl(j.nom_fichier)}
+                      loading="lazy"
+                    />
+                    <div className="flex items-center justify-between px-3 py-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-slate-900 truncate">{j.nom_original}</p>
+                        <p className="text-xs text-slate-500">{(j.taille / 1024).toFixed(1)} Ko</p>
+                      </div>
+                      <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+                        <button
+                          onClick={() => setPreviewUrl(j.nom_fichier)}
+                          className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
+                          title="Aperçu plein écran"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <a
+                          href={j.nom_fichier}
+                          download={j.nom_original}
+                          className="p-2 text-slate-600 hover:bg-slate-200 rounded-lg transition-colors"
+                          title="Télécharger"
+                        >
+                          <Download className="w-4 h-4" />
+                        </a>
+                        {(depense.statut === 'brouillon' || depense.statut === 'correction') && user?.role === 'comptable' && (
+                          <button
+                            onClick={() => setConfirmSupprimer(j.id)}
+                            className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
+                            title="Supprimer"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-slate-900 truncate">{j.nom_original}</p>
-                    <p className="text-xs text-slate-500">{j.type_fichier} · {(j.taille / 1024).toFixed(1)} Ko</p>
+                ) : (
+                  <div className="flex items-center justify-between px-3 py-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <FileText className="w-4 h-4 text-red-600" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-slate-900 truncate">{j.nom_original}</p>
+                        <p className="text-xs text-slate-500">PDF · {(j.taille / 1024).toFixed(1)} Ko</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+                      <a
+                        href={j.nom_fichier}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
+                        title="Ouvrir"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </a>
+                      <a
+                        href={j.nom_fichier}
+                        download={j.nom_original}
+                        className="p-2 text-slate-600 hover:bg-slate-200 rounded-lg transition-colors"
+                        title="Télécharger"
+                      >
+                        <Download className="w-4 h-4" />
+                      </a>
+                      {(depense.statut === 'brouillon' || depense.statut === 'correction') && user?.role === 'comptable' && (
+                        <button
+                          onClick={() => setConfirmSupprimer(j.id)}
+                          className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
+                          title="Supprimer"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0 ml-3">
-                  {j.type_fichier === 'image' && (
-                    <button
-                      onClick={() => handlePreview(j)}
-                      className="p-2.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
-                      title="Aperçu"
-                    >
-                      <Eye className="w-4 h-4" />
-                    </button>
-                  )}
-                  <button
-                    onClick={() => handleDownload(j)}
-                    className="p-2.5 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
-                    title="Télécharger"
-                  >
-                    <Download className="w-4 h-4" />
-                  </button>
-                  {(depense.statut === 'brouillon' || depense.statut === 'correction') && user?.role === 'comptable' && (
-                    <button
-                      onClick={() => setConfirmSupprimer(j.id)}
-                      className="p-2.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
-                      title="Supprimer"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
+                )}
               </div>
             ))}
           </div>
@@ -402,11 +410,11 @@ export default function DepenseDetail() {
       />
 
       {previewUrl && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => { window.URL.revokeObjectURL(previewUrl); setPreviewUrl(null); }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setPreviewUrl(null)}>
           <div className="relative max-w-[90vw] max-h-[90vh] p-2" onClick={(e) => e.stopPropagation()}>
             <img src={previewUrl} alt="Aperçu" className="max-w-full max-h-[85vh] rounded-lg shadow-2xl object-contain" />
             <button
-              onClick={() => { window.URL.revokeObjectURL(previewUrl); setPreviewUrl(null); }}
+              onClick={() => setPreviewUrl(null)}
               className="absolute -top-2 -right-2 w-11 h-11 bg-white rounded-full shadow-lg flex items-center justify-center text-slate-600 hover:text-slate-900 transition-colors"
             >
               <XCircle className="w-5 h-5" />
