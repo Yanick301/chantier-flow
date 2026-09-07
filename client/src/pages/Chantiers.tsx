@@ -8,6 +8,7 @@ import { Building2, MapPin, Plus, Eye, ArrowRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Modal from '../components/ui/Modal';
 import EmptyState from '../components/ui/EmptyState';
+import { ConstructionIllustration } from '../components/ui/Illustrations';
 
 export default function Chantiers() {
   const { user } = useAuth();
@@ -82,7 +83,7 @@ export default function Chantiers() {
 
       {chantiers.length === 0 ? (
         <EmptyState
-          icon={<Building2 className="w-9 h-9 text-slate-300" />}
+          illustration={<ConstructionIllustration />}
           title="Aucun chantier enregistré"
           description="Créez votre premier chantier pour commencer à suivre les finances."
           action={

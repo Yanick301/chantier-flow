@@ -10,6 +10,7 @@ import Modal from '../components/ui/Modal';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import InputDialog from '../components/ui/InputDialog';
 import EmptyState from '../components/ui/EmptyState';
+import { NoDataIllustration } from '../components/ui/Illustrations';
 
 export default function Depenses() {
   const { user } = useAuth();
@@ -194,7 +195,7 @@ export default function Depenses() {
       <div className="card !p-0 overflow-hidden animate-fade-in">
         {filteredDepenses.length === 0 ? (
           <EmptyState
-            icon={<Receipt className="w-9 h-9 text-slate-300" />}
+            illustration={<NoDataIllustration />}
             title="Aucune dépense trouvée"
             description={filter === 'all' ? 'Les dépenses enregistrées apparaîtront ici.' : 'Aucune dépense ne correspond à ce filtre.'}
           />

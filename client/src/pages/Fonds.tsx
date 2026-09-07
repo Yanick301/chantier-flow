@@ -9,6 +9,7 @@ import Modal from '../components/ui/Modal';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import InputDialog from '../components/ui/InputDialog';
 import EmptyState from '../components/ui/EmptyState';
+import { MoneyIllustration } from '../components/ui/Illustrations';
 
 export default function Fonds() {
   const { user } = useAuth();
@@ -146,7 +147,7 @@ export default function Fonds() {
       <div className="card !p-0 overflow-hidden animate-fade-in">
         {fonds.length === 0 ? (
           <EmptyState
-            icon={<Wallet className="w-9 h-9 text-slate-300" />}
+            illustration={<MoneyIllustration />}
             title="Aucun fonds enregistré"
             description="Les fonds envoyés aux chantiers apparaîtront ici."
             action={

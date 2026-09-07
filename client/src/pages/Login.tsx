@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { Eye, EyeOff, ArrowRight, Shield } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { LoginPersonIllustration } from '../components/ui/Illustrations';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -70,6 +71,10 @@ export default function Login() {
                   <span className="text-slate-300 text-sm">{feature}</span>
                 </div>
               ))}
+            </div>
+
+            <div className="mt-10 flex justify-center">
+              <LoginPersonIllustration className="w-48 h-48 opacity-80" />
             </div>
           </div>
         </div>
