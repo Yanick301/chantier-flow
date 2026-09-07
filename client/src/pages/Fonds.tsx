@@ -77,13 +77,18 @@ export default function Fonds() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!form.caisse_id || !form.montant || !form.motif || !form.date_envoi || !form.comptable_id) {
+      toast.error('Veuillez remplir tous les champs');
+      return;
+    }
     try {
       await api.post('/fonds', {
-        ...form,
-        montant: parseFloat(form.montant),
-        caisse_id: parseInt(form.caisse_id),
-        beneficiaire_id: parseInt(form.beneficiaire_id),
-        comptable_id: parseInt(form.comptable_id),
+        caisse_id: Number(form.caisse_id),
+        montant: Number(form.montant),
+        motif: form.motif,
+        date_envoi: form.date_envoi,
+        beneficiaire_id: Number(form.beneficiaire_id),
+        comptable_id: Number(form.comptable_id),
       });
       toast.success('Fonds envoyés');
       setShowModal(false);
