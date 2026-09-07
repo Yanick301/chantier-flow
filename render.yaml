@@ -12,3 +12,5 @@ services:
         generateValue: true
     healthCheckPath: /api/health
     autoDeploy: false
+    # Force Node 20+ for crypto global support
+    nodeVersion: "20"
