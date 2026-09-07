@@ -43,10 +43,16 @@ export default function Chantiers() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!form.nom || !form.localisation) {
+      toast.error('Veuillez remplir tous les champs obligatoires');
+      return;
+    }
     try {
       await api.post('/chantiers', {
-        ...form,
-        responsable_id: form.responsable_id ? parseInt(form.responsable_id) : undefined,
+        nom: form.nom,
+        localisation: form.localisation,
+        description: form.description,
+        responsable_id: form.responsable_id ? Number(form.responsable_id) : undefined,
       });
       toast.success('Chantier créé');
       setShowModal(false);

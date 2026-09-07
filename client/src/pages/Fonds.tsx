@@ -77,7 +77,7 @@ export default function Fonds() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.caisse_id || !form.montant || !form.motif || !form.date_envoi || !form.comptable_id) {
+    if (!form.caisse_id || !form.montant || !form.motif || !form.date_envoi || !form.beneficiaire_id || !form.comptable_id) {
       toast.error('Veuillez remplir tous les champs');
       return;
     }

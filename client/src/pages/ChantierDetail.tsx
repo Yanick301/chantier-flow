@@ -43,8 +43,12 @@ export default function ChantierDetail() {
 
   const handleCreateCaisse = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!id || isNaN(Number(id)) || !newCaisseName.trim()) {
+      toast.error('Paramètres invalides');
+      return;
+    }
     try {
-      await api.post('/caisses', { chantier_id: parseInt(id!), nom: newCaisseName });
+      await api.post('/caisses', { chantier_id: Number(id), nom: newCaisseName.trim() });
       toast.success('Caisse créée');
       setShowCaisseModal(false);
       setNewCaisseName('');

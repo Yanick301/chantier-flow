@@ -34,8 +34,19 @@ export default function Users() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!form.email || !form.mot_de_passe || !form.nom || !form.prenom) {
+      toast.error('Veuillez remplir tous les champs obligatoires');
+      return;
+    }
     try {
-      await api.post('/users', form);
+      await api.post('/users', {
+        email: form.email,
+        mot_de_passe: form.mot_de_passe,
+        nom: form.nom,
+        prenom: form.prenom,
+        telephone: form.telephone,
+        role: form.role,
+      });
       toast.success('Utilisateur créé');
       setShowModal(false);
       setForm({ email: '', mot_de_passe: '', nom: '', prenom: '', telephone: '', role: 'comptable' });
