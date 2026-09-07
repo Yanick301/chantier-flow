@@ -71,11 +71,18 @@ export default function Depenses() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!form.caisse_id || !form.montant || !form.categorie || !form.fournisseur || !form.date_depense) {
+      toast.error('Veuillez remplir tous les champs obligatoires');
+      return;
+    }
     try {
       const result = await api.post('/depenses', {
-        ...form,
-        montant: parseFloat(form.montant),
-        caisse_id: parseInt(form.caisse_id),
+        caisse_id: Number(form.caisse_id),
+        montant: Number(form.montant),
+        categorie: form.categorie,
+        fournisseur: form.fournisseur,
+        description: form.description,
+        date_depense: form.date_depense,
       });
       if (fichiers && fichiers.length > 0) {
         const formData = new FormData();
@@ -344,15 +351,21 @@ export default function Depenses() {
               ))}
             </select>
           </div>
-          {caisses.length > 0 && (
+          {selectedChantier && (
             <div>
               <label className="label">Caisse</label>
-              <select value={form.caisse_id} onChange={(e) => setForm({ ...form, caisse_id: e.target.value })} className="input-field" required>
-                <option value="">Sélectionner une caisse...</option>
-                {caisses.map((c) => (
-                  <option key={c.id} value={c.id}>{c.nom} (Solde: {formatMontant(c.solde)})</option>
-                ))}
-              </select>
+              {caisses.length > 0 ? (
+                <select value={form.caisse_id} onChange={(e) => setForm({ ...form, caisse_id: e.target.value })} className="input-field" required>
+                  <option value="">Sélectionner une caisse...</option>
+                  {caisses.map((c) => (
+                    <option key={c.id} value={c.id}>{c.nom} (Solde: {formatMontant(c.solde)})</option>
+                  ))}
+                </select>
+              ) : (
+                <p className="text-sm text-amber-600 bg-amber-50 rounded-lg px-3 py-2 border border-amber-200">
+                  Aucune caisse pour ce chantier. Créez d'abord une caisse dans le détail du chantier.
+                </p>
+              )}
             </div>
           )}
           <div className="grid grid-cols-2 gap-3">
