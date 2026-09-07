@@ -18,6 +18,9 @@ export default function Login() {
     setLoading(true);
     try {
       await login(email, motDePasse);
+      if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
       toast.success('Connexion réussie');
       navigate('/');
     } catch (error: any) {

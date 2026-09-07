@@ -1,6 +1,5 @@
-import { useState, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
-import { api } from '../../utils/api';
+import { useNotifications } from '../../hooks/useNotifications';
 import { LogOut, Bell, Menu } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -11,20 +10,7 @@ interface HeaderProps {
 export default function Header({ onMenuClick }: HeaderProps) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [notifCount, setNotifCount] = useState(0);
-
-  useEffect(() => {
-    loadNotifications();
-    const interval = setInterval(loadNotifications, 60000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const loadNotifications = async () => {
-    try {
-      const data = await api.get('/stats/notifications');
-      setNotifCount(data.count);
-    } catch (error) {}
-  };
+  const { count: notifCount } = useNotifications(user?.role);
 
   const handleLogout = () => {
     logout();
@@ -60,7 +46,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
         >
           <Bell className="w-5 h-5" />
           {notifCount > 0 && (
-            <span className="absolute top-1.5 right-1.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
+            <span className="absolute top-1.5 right-1.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 animate-pulse">
               {notifCount > 99 ? '99+' : notifCount}
             </span>
           )}
