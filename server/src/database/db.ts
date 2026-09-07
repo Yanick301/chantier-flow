@@ -1,23 +1,74 @@
-import Database from 'better-sqlite3';
-import path from 'path';
+import { createClient, Client } from '@libsql/client';
 
-const DB_PATH = path.join(__dirname, '../../chantier_flow.db');
+const TURSO_URL = process.env.TURSO_DATABASE_URL;
+const TURSO_TOKEN = process.env.TURSO_AUTH_TOKEN;
 
-let db: Database.Database;
+let client: Client;
 
-export function getDb(): Database.Database {
+function getClient(): Client {
+  if (!client) {
+    client = createClient({
+      url: TURSO_URL || 'file:./chantier_flow.db',
+      authToken: TURSO_TOKEN || undefined,
+    });
+  }
+  return client;
+}
+
+interface Statement {
+  get(...params: any[]): Promise<any>;
+  all(...params: any[]): Promise<any[]>;
+  run(...params: any[]): Promise<{ changes: number; lastInsertRowid: number }>;
+}
+
+function createDbProxy() {
+  return {
+    prepare(sql: string): Statement {
+      return {
+        async get(...params: any[]) {
+          const result = await getClient().execute({ sql, args: params });
+          return result.rows[0] || null;
+        },
+        async all(...params: any[]) {
+          const result = await getClient().execute({ sql, args: params });
+          return result.rows;
+        },
+        async run(...params: any[]) {
+          const result = await getClient().execute({ sql, args: params });
+          return {
+            changes: result.rowsAffected,
+            lastInsertRowid: Number(result.lastInsertRowid || 0),
+          };
+        },
+      };
+    },
+    async exec(sql: string) {
+      const statements = sql.split(';').map(s => s.trim()).filter(Boolean);
+      for (const stmt of statements) {
+        await getClient().execute(stmt);
+      }
+    },
+    async pragma(setting: string) {
+      await getClient().execute(`PRAGMA ${setting}`);
+    },
+  };
+}
+
+type DbProxy = ReturnType<typeof createDbProxy>;
+
+let db: DbProxy;
+
+export function getDb(): DbProxy {
   if (!db) {
-    db = new Database(DB_PATH);
-    db.pragma('journal_mode = WAL');
-    db.pragma('foreign_keys = ON');
+    db = createDbProxy();
   }
   return db;
 }
 
-export function initDb(): void {
+export async function initDb(): Promise<void> {
   const database = getDb();
 
-  database.exec(`
+  await database.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       nom TEXT NOT NULL,
@@ -29,8 +80,10 @@ export function initDb(): void {
       actif INTEGER DEFAULT 1,
       date_creation TEXT DEFAULT (datetime('now')),
       date_modification TEXT DEFAULT (datetime('now'))
-    );
+    )
+  `);
 
+  await database.exec(`
     CREATE TABLE IF NOT EXISTS chantiers (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       nom TEXT NOT NULL,
@@ -41,8 +94,10 @@ export function initDb(): void {
       date_creation TEXT DEFAULT (datetime('now')),
       date_modification TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (responsable_id) REFERENCES users(id)
-    );
+    )
+  `);
 
+  await database.exec(`
     CREATE TABLE IF NOT EXISTS chantiers_controleurs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       chantier_id INTEGER NOT NULL,
@@ -51,8 +106,10 @@ export function initDb(): void {
       FOREIGN KEY (chantier_id) REFERENCES chantiers(id),
       FOREIGN KEY (controleur_id) REFERENCES users(id),
       UNIQUE(chantier_id, controleur_id)
-    );
+    )
+  `);
 
+  await database.exec(`
     CREATE TABLE IF NOT EXISTS caisses (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       chantier_id INTEGER NOT NULL,
@@ -61,8 +118,10 @@ export function initDb(): void {
       date_creation TEXT DEFAULT (datetime('now')),
       date_modification TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (chantier_id) REFERENCES chantiers(id)
-    );
+    )
+  `);
 
+  await database.exec(`
     CREATE TABLE IF NOT EXISTS fonds (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       caisse_id INTEGER NOT NULL,
@@ -80,8 +139,10 @@ export function initDb(): void {
       FOREIGN KEY (envoye_par) REFERENCES users(id),
       FOREIGN KEY (beneficiaire_id) REFERENCES users(id),
       FOREIGN KEY (comptable_id) REFERENCES users(id)
-    );
+    )
+  `);
 
+  await database.exec(`
     CREATE TABLE IF NOT EXISTS depenses (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       caisse_id INTEGER NOT NULL,
@@ -99,8 +160,10 @@ export function initDb(): void {
       FOREIGN KEY (caisse_id) REFERENCES caisses(id),
       FOREIGN KEY (fonds_id) REFERENCES fonds(id),
       FOREIGN KEY (enregistre_par) REFERENCES users(id)
-    );
+    )
+  `);
 
+  await database.exec(`
     CREATE TABLE IF NOT EXISTS justificatifs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       depense_id INTEGER NOT NULL,
@@ -110,8 +173,10 @@ export function initDb(): void {
       taille INTEGER DEFAULT 0,
       date_ajout TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (depense_id) REFERENCES depenses(id) ON DELETE CASCADE
-    );
+    )
+  `);
 
+  await database.exec(`
     CREATE TABLE IF NOT EXISTS verifications (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       depense_id INTEGER NOT NULL,
@@ -121,8 +186,10 @@ export function initDb(): void {
       date_verification TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (depense_id) REFERENCES depenses(id),
       FOREIGN KEY (verifie_par) REFERENCES users(id)
-    );
+    )
+  `);
 
+  await database.exec(`
     CREATE TABLE IF NOT EXISTS audit_log (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER,
@@ -133,16 +200,16 @@ export function initDb(): void {
       ip_address TEXT DEFAULT '',
       date_action TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (user_id) REFERENCES users(id)
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_depenses_caisse ON depenses(caisse_id);
-    CREATE INDEX IF NOT EXISTS idx_depenses_statut ON depenses(statut);
-    CREATE INDEX IF NOT EXISTS idx_depenses_enregistre ON depenses(enregistre_par);
-    CREATE INDEX IF NOT EXISTS idx_justificatifs_depense ON justificatifs(depense_id);
-    CREATE INDEX IF NOT EXISTS idx_verifications_depense ON verifications(depense_id);
-    CREATE INDEX IF NOT EXISTS idx_audit_log_user ON audit_log(user_id);
-    CREATE INDEX IF NOT EXISTS idx_audit_log_entity ON audit_log(entity_type, entity_id);
-    CREATE INDEX IF NOT EXISTS idx_fonds_caisse ON fonds(caisse_id);
-    CREATE INDEX IF NOT EXISTS idx_caisses_chantier ON caisses(chantier_id);
+    )
   `);
+
+  await database.exec(`CREATE INDEX IF NOT EXISTS idx_depenses_caisse ON depenses(caisse_id)`);
+  await database.exec(`CREATE INDEX IF NOT EXISTS idx_depenses_statut ON depenses(statut)`);
+  await database.exec(`CREATE INDEX IF NOT EXISTS idx_depenses_enregistre ON depenses(enregistre_par)`);
+  await database.exec(`CREATE INDEX IF NOT EXISTS idx_justificatifs_depense ON justificatifs(depense_id)`);
+  await database.exec(`CREATE INDEX IF NOT EXISTS idx_verifications_depense ON verifications(depense_id)`);
+  await database.exec(`CREATE INDEX IF NOT EXISTS idx_audit_log_user ON audit_log(user_id)`);
+  await database.exec(`CREATE INDEX IF NOT EXISTS idx_audit_log_entity ON audit_log(entity_type, entity_id)`);
+  await database.exec(`CREATE INDEX IF NOT EXISTS idx_fonds_caisse ON fonds(caisse_id)`);
+  await database.exec(`CREATE INDEX IF NOT EXISTS idx_caisses_chantier ON caisses(chantier_id)`);
 }

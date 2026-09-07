@@ -33,10 +33,10 @@ const router = Router();
 
 router.use(authMiddleware);
 
-router.get('/depense/:depenseId', (req: AuthRequest, res: Response) => {
+router.get('/depense/:depenseId', async (req: AuthRequest, res: Response) => {
   try {
     const db = getDb();
-    const justificatifs = db.prepare('SELECT * FROM justificatifs WHERE depense_id = ?').all(req.params.depenseId);
+    const justificatifs = await db.prepare('SELECT * FROM justificatifs WHERE depense_id = ?').all(req.params.depenseId);
     res.json(justificatifs);
   } catch (error) {
     console.error('Erreur get justificatifs:', error);
@@ -44,10 +44,10 @@ router.get('/depense/:depenseId', (req: AuthRequest, res: Response) => {
   }
 });
 
-router.post('/depense/:depenseId', upload.array('fichiers', 10), (req: AuthRequest, res: Response) => {
+router.post('/depense/:depenseId', upload.array('fichiers', 10), async (req: AuthRequest, res: Response) => {
   try {
     const db = getDb();
-    const depense = db.prepare('SELECT * FROM depenses WHERE id = ?').get(req.params.depenseId) as any;
+    const depense = await db.prepare('SELECT * FROM depenses WHERE id = ?').get(req.params.depenseId) as any;
 
     if (!depense) {
       res.status(404).json({ error: 'Dépense non trouvée' });
@@ -65,19 +65,17 @@ router.post('/depense/:depenseId', upload.array('fichiers', 10), (req: AuthReque
       return;
     }
 
-    const stmt = db.prepare(`
-      INSERT INTO justificatifs (depense_id, type_fichier, nom_fichier, nom_original, taille)
-      VALUES (?, ?, ?, ?, ?)
-    `);
-
     const justificatifs = [];
     for (const file of files) {
       const typeFichier = file.mimetype === 'application/pdf' ? 'pdf' : 'image';
-      const result = stmt.run(req.params.depenseId, typeFichier, file.filename, file.originalname, file.size);
+      const result = await db.prepare(`
+        INSERT INTO justificatifs (depense_id, type_fichier, nom_fichier, nom_original, taille)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(req.params.depenseId, typeFichier, file.filename, file.originalname, file.size);
       justificatifs.push({ id: result.lastInsertRowid, type_fichier: typeFichier, nom_original: file.originalname });
     }
 
-    logAudit(req.user!.id, 'ajout_justificatif', 'depense', parseInt(req.params.depenseId),
+    await logAudit(req.user!.id, 'ajout_justificatif', 'depense', parseInt(req.params.depenseId),
       `Ajout de ${files.length} justificatif(s)`, req.ip || '');
 
     res.status(201).json(justificatifs);
@@ -87,10 +85,10 @@ router.post('/depense/:depenseId', upload.array('fichiers', 10), (req: AuthReque
   }
 });
 
-router.get('/:id/fichier', (req: AuthRequest, res: Response) => {
+router.get('/:id/fichier', async (req: AuthRequest, res: Response) => {
   try {
     const db = getDb();
-    const justificatif = db.prepare('SELECT * FROM justificatifs WHERE id = ?').get(req.params.id) as any;
+    const justificatif = await db.prepare('SELECT * FROM justificatifs WHERE id = ?').get(req.params.id) as any;
 
     if (!justificatif) {
       res.status(404).json({ error: 'Justificatif non trouvé' });
@@ -105,17 +103,17 @@ router.get('/:id/fichier', (req: AuthRequest, res: Response) => {
   }
 });
 
-router.delete('/:id', (req: AuthRequest, res: Response) => {
+router.delete('/:id', async (req: AuthRequest, res: Response) => {
   try {
     const db = getDb();
-    const justificatif = db.prepare('SELECT * FROM justificatifs WHERE id = ?').get(req.params.id) as any;
+    const justificatif = await db.prepare('SELECT * FROM justificatifs WHERE id = ?').get(req.params.id) as any;
 
     if (!justificatif) {
       res.status(404).json({ error: 'Justificatif non trouvé' });
       return;
     }
 
-    const depense = db.prepare('SELECT * FROM depenses WHERE id = ?').get(justificatif.depense_id) as any;
+    const depense = await db.prepare('SELECT * FROM depenses WHERE id = ?').get(justificatif.depense_id) as any;
     if (depense.enregistre_par !== req.user!.id && req.user!.role !== 'president') {
       res.status(403).json({ error: 'Accès refusé' });
       return;
@@ -126,9 +124,9 @@ router.delete('/:id', (req: AuthRequest, res: Response) => {
       fs.unlinkSync(filePath);
     }
 
-    db.prepare('DELETE FROM justificatifs WHERE id = ?').run(req.params.id);
+    await db.prepare('DELETE FROM justificatifs WHERE id = ?').run(req.params.id);
 
-    logAudit(req.user!.id, 'suppression_justificatif', 'justificatif', parseInt(req.params.id),
+    await logAudit(req.user!.id, 'suppression_justificatif', 'justificatif', parseInt(req.params.id),
       `Suppression justificatif ${justificatif.nom_original}`, req.ip || '');
 
     res.json({ message: 'Justificatif supprimé' });

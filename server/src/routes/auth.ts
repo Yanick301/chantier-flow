@@ -15,7 +15,7 @@ router.post('/login', async (req: Request, res: Response) => {
     }
 
     const db = getDb();
-    const user = db.prepare('SELECT * FROM users WHERE email = ? AND actif = 1').get(email) as any;
+    const user = await db.prepare('SELECT * FROM users WHERE email = ? AND actif = 1').get(email) as any;
 
     if (!user) {
       res.status(401).json({ error: 'Identifiants incorrects' });
@@ -58,7 +58,7 @@ router.post('/register', async (req: Request, res: Response) => {
     }
 
     const db = getDb();
-    const existingUser = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+    const existingUser = await db.prepare('SELECT id FROM users WHERE email = ?').get(email);
 
     if (existingUser) {
       res.status(400).json({ error: 'Cet email est déjà utilisé' });
@@ -67,7 +67,7 @@ router.post('/register', async (req: Request, res: Response) => {
 
     const hashedPassword = await bcrypt.hash(mot_de_passe, 10);
 
-    const result = db.prepare(`
+    const result = await db.prepare(`
       INSERT INTO users (nom, prenom, email, mot_de_passe, role, telephone)
       VALUES (?, ?, ?, ?, ?, ?)
     `).run(nom, prenom, email, hashedPassword, role, telephone || '');

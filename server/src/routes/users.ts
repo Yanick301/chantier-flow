@@ -7,10 +7,10 @@ const router = Router();
 
 router.use(authMiddleware);
 
-router.get('/', roleMiddleware('president'), (req: AuthRequest, res: Response) => {
+router.get('/', roleMiddleware('president'), async (req: AuthRequest, res: Response) => {
   try {
     const db = getDb();
-    const users = db.prepare(`
+    const users = await db.prepare(`
       SELECT id, nom, prenom, email, role, telephone, actif, date_creation
       FROM users ORDER BY date_creation DESC
     `).all();
@@ -21,10 +21,10 @@ router.get('/', roleMiddleware('president'), (req: AuthRequest, res: Response) =
   }
 });
 
-router.get('/:id', (req: AuthRequest, res: Response) => {
+router.get('/:id', async (req: AuthRequest, res: Response) => {
   try {
     const db = getDb();
-    const user = db.prepare(`
+    const user = await db.prepare(`
       SELECT id, nom, prenom, email, role, telephone, actif, date_creation
       FROM users WHERE id = ?
     `).get(req.params.id);
@@ -50,19 +50,19 @@ router.post('/', roleMiddleware('president'), async (req: AuthRequest, res: Resp
     }
 
     const db = getDb();
-    const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+    const existing = await db.prepare('SELECT id FROM users WHERE email = ?').get(email);
     if (existing) {
       res.status(400).json({ error: 'Cet email est déjà utilisé' });
       return;
     }
 
     const hashedPassword = await bcrypt.hash(mot_de_passe, 10);
-    const result = db.prepare(`
+    const result = await db.prepare(`
       INSERT INTO users (nom, prenom, email, mot_de_passe, role, telephone)
       VALUES (?, ?, ?, ?, ?, ?)
     `).run(nom, prenom, email, hashedPassword, role, telephone || '');
 
-    logAudit(req.user!.id, 'creation', 'user', result.lastInsertRowid as number,
+    await logAudit(req.user!.id, 'creation', 'user', result.lastInsertRowid as number,
       `Création utilisateur ${prenom} ${nom} (${role})`, req.ip || '');
 
     res.status(201).json({
@@ -80,14 +80,14 @@ router.put('/:id', roleMiddleware('president'), async (req: AuthRequest, res: Re
     const { nom, prenom, email, role, telephone, actif, mot_de_passe } = req.body;
     const db = getDb();
 
-    const existing = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id) as any;
+    const existing = await db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id) as any;
     if (!existing) {
       res.status(404).json({ error: 'Utilisateur non trouvé' });
       return;
     }
 
     if (email && email !== existing.email) {
-      const emailExists = db.prepare('SELECT id FROM users WHERE email = ? AND id != ?').get(email, req.params.id);
+      const emailExists = await db.prepare('SELECT id FROM users WHERE email = ? AND id != ?').get(email, req.params.id);
       if (emailExists) {
         res.status(400).json({ error: 'Cet email est déjà utilisé' });
         return;
@@ -106,9 +106,9 @@ router.put('/:id', roleMiddleware('president'), async (req: AuthRequest, res: Re
     query += ` WHERE id=?`;
     params.push(req.params.id);
 
-    db.prepare(query).run(...params);
+    await db.prepare(query).run(...params);
 
-    logAudit(req.user!.id, 'modification', 'user', parseInt(req.params.id),
+    await logAudit(req.user!.id, 'modification', 'user', parseInt(req.params.id),
       `Modification utilisateur`, req.ip || '');
 
     res.json({ message: 'Utilisateur mis à jour' });
@@ -118,12 +118,12 @@ router.put('/:id', roleMiddleware('president'), async (req: AuthRequest, res: Re
   }
 });
 
-router.delete('/:id', roleMiddleware('president'), (req: AuthRequest, res: Response) => {
+router.delete('/:id', roleMiddleware('president'), async (req: AuthRequest, res: Response) => {
   try {
     const db = getDb();
-    db.prepare('UPDATE users SET actif = 0, date_modification = datetime(\'now\') WHERE id = ?').run(req.params.id);
+    await db.prepare('UPDATE users SET actif = 0, date_modification = datetime(\'now\') WHERE id = ?').run(req.params.id);
 
-    logAudit(req.user!.id, 'desactivation', 'user', parseInt(req.params.id),
+    await logAudit(req.user!.id, 'desactivation', 'user', parseInt(req.params.id),
       `Désactivation utilisateur`, req.ip || '');
 
     res.json({ message: 'Utilisateur désactivé' });

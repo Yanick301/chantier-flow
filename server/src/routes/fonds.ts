@@ -6,10 +6,10 @@ const router = Router();
 
 router.use(authMiddleware);
 
-router.get('/caisse/:caisseId', (req: AuthRequest, res: Response) => {
+router.get('/caisse/:caisseId', async (req: AuthRequest, res: Response) => {
   try {
     const db = getDb();
-    const fonds = db.prepare(`
+    const fonds = await db.prepare(`
       SELECT f.*,
         u1.nom || ' ' || u1.prenom as envoye_par_nom,
         u2.nom || ' ' || u2.prenom as beneficiaire_nom,
@@ -28,10 +28,10 @@ router.get('/caisse/:caisseId', (req: AuthRequest, res: Response) => {
   }
 });
 
-router.get('/:id', (req: AuthRequest, res: Response) => {
+router.get('/:id', async (req: AuthRequest, res: Response) => {
   try {
     const db = getDb();
-    const fond = db.prepare(`
+    const fond = await db.prepare(`
       SELECT f.*,
         u1.nom || ' ' || u1.prenom as envoye_par_nom,
         u2.nom || ' ' || u2.prenom as beneficiaire_nom,
@@ -54,7 +54,7 @@ router.get('/:id', (req: AuthRequest, res: Response) => {
   }
 });
 
-router.post('/', roleMiddleware('president', 'controleur'), (req: AuthRequest, res: Response) => {
+router.post('/', roleMiddleware('president', 'controleur'), async (req: AuthRequest, res: Response) => {
   try {
     const { caisse_id, montant, motif, date_envoi, beneficiaire_id, comptable_id } = req.body;
 
@@ -70,18 +70,18 @@ router.post('/', roleMiddleware('president', 'controleur'), (req: AuthRequest, r
 
     const db = getDb();
 
-    const caisse = db.prepare('SELECT * FROM caisses WHERE id = ?').get(caisse_id) as any;
+    const caisse = await db.prepare('SELECT * FROM caisses WHERE id = ?').get(caisse_id) as any;
     if (!caisse) {
       res.status(404).json({ error: 'Caisse non trouvée' });
       return;
     }
 
-    const result = db.prepare(`
+    const result = await db.prepare(`
       INSERT INTO fonds (caisse_id, montant, motif, date_envoi, envoye_par, beneficiaire_id, comptable_id, statut)
       VALUES (?, ?, ?, ?, ?, ?, ?, 'en_attente')
     `).run(caisse_id, montant, motif, date_envoi, req.user!.id, beneficiaire_id, comptable_id);
 
-    logAudit(req.user!.id, 'envoi_fonds', 'fonds', result.lastInsertRowid as number,
+    await logAudit(req.user!.id, 'envoi_fonds', 'fonds', result.lastInsertRowid as number,
       `Envoi de ${montant} FCFA à la caisse #${caisse_id} - ${motif}`, req.ip || '');
 
     res.status(201).json({ id: result.lastInsertRowid, montant, motif, statut: 'en_attente' });
@@ -91,10 +91,10 @@ router.post('/', roleMiddleware('president', 'controleur'), (req: AuthRequest, r
   }
 });
 
-router.put('/:id/valider', roleMiddleware('president', 'controleur'), (req: AuthRequest, res: Response) => {
+router.put('/:id/valider', roleMiddleware('president', 'controleur'), async (req: AuthRequest, res: Response) => {
   try {
     const db = getDb();
-    const fond = db.prepare('SELECT * FROM fonds WHERE id = ?').get(req.params.id) as any;
+    const fond = await db.prepare('SELECT * FROM fonds WHERE id = ?').get(req.params.id) as any;
 
     if (!fond) {
       res.status(404).json({ error: 'Fonds non trouvé' });
@@ -106,10 +106,10 @@ router.put('/:id/valider', roleMiddleware('president', 'controleur'), (req: Auth
       return;
     }
 
-    db.prepare('UPDATE fonds SET statut = \'valide\', date_modification = datetime(\'now\') WHERE id = ?').run(req.params.id);
-    db.prepare('UPDATE caisses SET solde = solde + ?, date_modification = datetime(\'now\') WHERE id = ?').run(fond.montant, fond.caisse_id);
+    await db.prepare('UPDATE fonds SET statut = \'valide\', date_modification = datetime(\'now\') WHERE id = ?').run(req.params.id);
+    await db.prepare('UPDATE caisses SET solde = solde + ?, date_modification = datetime(\'now\') WHERE id = ?').run(fond.montant, fond.caisse_id);
 
-    logAudit(req.user!.id, 'validation_fonds', 'fonds', parseInt(req.params.id),
+    await logAudit(req.user!.id, 'validation_fonds', 'fonds', parseInt(req.params.id),
       `Validation fonds de ${fond.montant} FCFA`, req.ip || '');
 
     res.json({ message: 'Fonds validé' });
@@ -119,11 +119,11 @@ router.put('/:id/valider', roleMiddleware('president', 'controleur'), (req: Auth
   }
 });
 
-router.put('/:id/rejeter', roleMiddleware('president', 'controleur'), (req: AuthRequest, res: Response) => {
+router.put('/:id/rejeter', roleMiddleware('president', 'controleur'), async (req: AuthRequest, res: Response) => {
   try {
     const { commentaire } = req.body;
     const db = getDb();
-    const fond = db.prepare('SELECT * FROM fonds WHERE id = ?').get(req.params.id) as any;
+    const fond = await db.prepare('SELECT * FROM fonds WHERE id = ?').get(req.params.id) as any;
 
     if (!fond) {
       res.status(404).json({ error: 'Fonds non trouvé' });
@@ -135,10 +135,10 @@ router.put('/:id/rejeter', roleMiddleware('president', 'controleur'), (req: Auth
       return;
     }
 
-    db.prepare('UPDATE fonds SET statut = \'rejete\', commentaire = ?, date_modification = datetime(\'now\') WHERE id = ?')
+    await db.prepare('UPDATE fonds SET statut = \'rejete\', commentaire = ?, date_modification = datetime(\'now\') WHERE id = ?')
       .run(commentaire || '', req.params.id);
 
-    logAudit(req.user!.id, 'rejet_fonds', 'fonds', parseInt(req.params.id),
+    await logAudit(req.user!.id, 'rejet_fonds', 'fonds', parseInt(req.params.id),
       `Rejet fonds de ${fond.montant} FCFA - ${commentaire || 'Aucun commentaire'}`, req.ip || '');
 
     res.json({ message: 'Fonds rejeté' });

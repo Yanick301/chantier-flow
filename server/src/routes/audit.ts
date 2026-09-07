@@ -7,7 +7,7 @@ const router = Router();
 router.use(authMiddleware);
 router.use(roleMiddleware('president'));
 
-router.get('/', (req: AuthRequest, res: Response) => {
+router.get('/', async (req: AuthRequest, res: Response) => {
   try {
     const db = getDb();
     const { page = '1', limit = '50', entity_type, user_id } = req.query;
@@ -37,8 +37,8 @@ router.get('/', (req: AuthRequest, res: Response) => {
     query += ' ORDER BY a.date_action DESC LIMIT ? OFFSET ?';
     params.push(parseInt(limit as string), offset);
 
-    const logs = db.prepare(query).all(...params);
-    const total = (db.prepare('SELECT COUNT(*) as count FROM audit_log').get() as any).count;
+    const logs = await db.prepare(query).all(...params);
+    const total = ((await db.prepare('SELECT COUNT(*) as count FROM audit_log').get()) as any).count;
 
     res.json({ logs, total, page: parseInt(page as string), limit: parseInt(limit as string) });
   } catch (error) {
@@ -47,10 +47,10 @@ router.get('/', (req: AuthRequest, res: Response) => {
   }
 });
 
-router.get('/entity/:type/:id', (req: AuthRequest, res: Response) => {
+router.get('/entity/:type/:id', async (req: AuthRequest, res: Response) => {
   try {
     const db = getDb();
-    const logs = db.prepare(`
+    const logs = await db.prepare(`
       SELECT a.*, u.nom || ' ' || u.prenom as user_nom
       FROM audit_log a
       LEFT JOIN users u ON a.user_id = u.id

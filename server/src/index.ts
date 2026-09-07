@@ -55,12 +55,12 @@ if (fs.existsSync(clientDist)) {
 
 async function ensureAdminUser() {
   const db = getDb();
-  const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get() as any;
-  
+  const userCount = await db.prepare('SELECT COUNT(*) as count FROM users').get() as any;
+
   if (userCount.count === 0) {
     console.log('Création de l\'administrateur initial...');
     const hashedPassword = await bcrypt.hash('admin123', 10);
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO users (nom, prenom, email, mot_de_passe, role, telephone)
       VALUES (?, ?, ?, ?, ?, ?)
     `).run('Administrateur', 'Système', 'admin@chantierflow.com', hashedPassword, 'president', '');
@@ -69,8 +69,7 @@ async function ensureAdminUser() {
   }
 }
 
-initDb();
-ensureAdminUser().then(() => {
+initDb().then(() => ensureAdminUser()).then(() => {
   app.listen(PORT, () => {
     console.log(`CHANTIER FLOW API démarrée sur le port ${PORT}`);
   });

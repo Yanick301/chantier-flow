@@ -6,10 +6,10 @@ const router = Router();
 
 router.use(authMiddleware);
 
-router.get('/caisse/:caisseId', (req: AuthRequest, res: Response) => {
+router.get('/caisse/:caisseId', async (req: AuthRequest, res: Response) => {
   try {
     const db = getDb();
-    const depenses = db.prepare(`
+    const depenses = await db.prepare(`
       SELECT d.*,
         u.nom || ' ' || u.prenom as enregistre_par_nom,
         (SELECT COUNT(*) FROM justificatifs WHERE depense_id = d.id) as nb_justificatifs
@@ -25,10 +25,10 @@ router.get('/caisse/:caisseId', (req: AuthRequest, res: Response) => {
   }
 });
 
-router.get('/mes-depenses', (req: AuthRequest, res: Response) => {
+router.get('/mes-depenses', async (req: AuthRequest, res: Response) => {
   try {
     const db = getDb();
-    const depenses = db.prepare(`
+    const depenses = await db.prepare(`
       SELECT d.*, c.nom as caisse_nom, ch.nom as chantier_nom,
         (SELECT COUNT(*) FROM justificatifs WHERE depense_id = d.id) as nb_justificatifs
       FROM depenses d
@@ -44,13 +44,13 @@ router.get('/mes-depenses', (req: AuthRequest, res: Response) => {
   }
 });
 
-router.get('/en-attente', roleMiddleware('president', 'controleur'), (req: AuthRequest, res: Response) => {
+router.get('/en-attente', roleMiddleware('president', 'controleur'), async (req: AuthRequest, res: Response) => {
   try {
     const db = getDb();
     let depenses;
 
     if (req.user!.role === 'controleur') {
-      depenses = db.prepare(`
+      depenses = await db.prepare(`
         SELECT d.*, u.nom || ' ' || u.prenom as enregistre_par_nom,
           c.nom as caisse_nom, ch.nom as chantier_nom,
           (SELECT COUNT(*) FROM justificatifs WHERE depense_id = d.id) as nb_justificatifs
@@ -63,7 +63,7 @@ router.get('/en-attente', roleMiddleware('president', 'controleur'), (req: AuthR
         ORDER BY d.date_creation ASC
       `).all(req.user!.id);
     } else {
-      depenses = db.prepare(`
+      depenses = await db.prepare(`
         SELECT d.*, u.nom || ' ' || u.prenom as enregistre_par_nom,
           c.nom as caisse_nom, ch.nom as chantier_nom,
           (SELECT COUNT(*) FROM justificatifs WHERE depense_id = d.id) as nb_justificatifs
@@ -83,10 +83,10 @@ router.get('/en-attente', roleMiddleware('president', 'controleur'), (req: AuthR
   }
 });
 
-router.get('/:id', (req: AuthRequest, res: Response) => {
+router.get('/:id', async (req: AuthRequest, res: Response) => {
   try {
     const db = getDb();
-    const depense = db.prepare(`
+    const depense = await db.prepare(`
       SELECT d.*, u.nom || ' ' || u.prenom as enregistre_par_nom,
         c.nom as caisse_nom, ch.nom as chantier_nom, ch.id as chantier_id,
         (SELECT COALESCE(SUM(montant), 0) FROM fonds WHERE caisse_id = d.caisse_id AND statut = 'valide') as fonds_disponibles,
@@ -103,8 +103,8 @@ router.get('/:id', (req: AuthRequest, res: Response) => {
       return;
     }
 
-    const justificatifs = db.prepare('SELECT * FROM justificatifs WHERE depense_id = ?').all(req.params.id);
-    const verifications = db.prepare(`
+    const justificatifs = await db.prepare('SELECT * FROM justificatifs WHERE depense_id = ?').all(req.params.id);
+    const verifications = await db.prepare(`
       SELECT v.*, u.nom || ' ' || u.prenom as verifie_par_nom
       FROM verifications v
       LEFT JOIN users u ON v.verifie_par = u.id
@@ -119,7 +119,7 @@ router.get('/:id', (req: AuthRequest, res: Response) => {
   }
 });
 
-router.post('/', roleMiddleware('comptable'), (req: AuthRequest, res: Response) => {
+router.post('/', roleMiddleware('comptable'), async (req: AuthRequest, res: Response) => {
   try {
     const { caisse_id, fonds_id, montant, categorie, fournisseur, description, date_depense } = req.body;
 
@@ -135,20 +135,20 @@ router.post('/', roleMiddleware('comptable'), (req: AuthRequest, res: Response) 
 
     const db = getDb();
 
-    const caisse = db.prepare('SELECT * FROM caisses WHERE id = ?').get(caisse_id) as any;
+    const caisse = await db.prepare('SELECT * FROM caisses WHERE id = ?').get(caisse_id) as any;
     if (!caisse) {
       res.status(404).json({ error: 'Caisse non trouvée' });
       return;
     }
 
-    const result = db.prepare(`
+    const result = await db.prepare(`
       INSERT INTO depenses (caisse_id, fonds_id, montant, categorie, fournisseur, description, date_depense, enregistre_par, statut)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'brouillon')
     `).run(caisse_id, fonds_id || null, montant, categorie, fournisseur, description || '', date_depense, req.user!.id);
 
     const depenseId = result.lastInsertRowid as number;
 
-    logAudit(req.user!.id, 'creation', 'depense', depenseId,
+    await logAudit(req.user!.id, 'creation', 'depense', depenseId,
       `Création dépense de ${montant} FCFA (${categorie}) - ${fournisseur}`, req.ip || '');
 
     res.status(201).json({ id: depenseId, montant, categorie, statut: 'brouillon' });
@@ -158,11 +158,11 @@ router.post('/', roleMiddleware('comptable'), (req: AuthRequest, res: Response) 
   }
 });
 
-router.put('/:id/soumettre', roleMiddleware('comptable'), (req: AuthRequest, res: Response) => {
+router.put('/:id/soumettre', roleMiddleware('comptable'), async (req: AuthRequest, res: Response) => {
   try {
     const { commentaire } = req.body;
     const db = getDb();
-    const depense = db.prepare('SELECT * FROM depenses WHERE id = ?').get(req.params.id) as any;
+    const depense = await db.prepare('SELECT * FROM depenses WHERE id = ?').get(req.params.id) as any;
 
     if (!depense) {
       res.status(404).json({ error: 'Dépense non trouvée' });
@@ -174,14 +174,14 @@ router.put('/:id/soumettre', roleMiddleware('comptable'), (req: AuthRequest, res
       return;
     }
 
-    db.prepare('UPDATE depenses SET statut = \'soumise\', date_modification = datetime(\'now\') WHERE id = ?').run(req.params.id);
+    await db.prepare('UPDATE depenses SET statut = \'soumise\', date_modification = datetime(\'now\') WHERE id = ?').run(req.params.id);
 
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO verifications (depense_id, verifie_par, action, commentaire)
       VALUES (?, ?, 'soumise', ?)
     `).run(req.params.id, req.user!.id, commentaire || 'Dépense soumise par le comptable');
 
-    logAudit(req.user!.id, 'soumission', 'depense', parseInt(req.params.id),
+    await logAudit(req.user!.id, 'soumission', 'depense', parseInt(req.params.id),
       `Soumission de la dépense`, req.ip || '');
 
     res.json({ message: 'Dépense soumise au contrôle' });
@@ -191,10 +191,10 @@ router.put('/:id/soumettre', roleMiddleware('comptable'), (req: AuthRequest, res
   }
 });
 
-router.put('/:id/controle', roleMiddleware('president', 'controleur'), (req: AuthRequest, res: Response) => {
+router.put('/:id/controle', roleMiddleware('president', 'controleur'), async (req: AuthRequest, res: Response) => {
   try {
     const db = getDb();
-    const depense = db.prepare('SELECT * FROM depenses WHERE id = ?').get(req.params.id) as any;
+    const depense = await db.prepare('SELECT * FROM depenses WHERE id = ?').get(req.params.id) as any;
 
     if (!depense) {
       res.status(404).json({ error: 'Dépense non trouvée' });
@@ -206,14 +206,14 @@ router.put('/:id/controle', roleMiddleware('president', 'controleur'), (req: Aut
       return;
     }
 
-    db.prepare('UPDATE depenses SET statut = \'en_controle\', date_modification = datetime(\'now\') WHERE id = ?').run(req.params.id);
+    await db.prepare('UPDATE depenses SET statut = \'en_controle\', date_modification = datetime(\'now\') WHERE id = ?').run(req.params.id);
 
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO verifications (depense_id, verifie_par, action, commentaire)
       VALUES (?, ?, 'en_controle', 'Dépense prise en contrôle')
     `).run(req.params.id, req.user!.id);
 
-    logAudit(req.user!.id, 'prise_controle', 'depense', parseInt(req.params.id),
+    await logAudit(req.user!.id, 'prise_controle', 'depense', parseInt(req.params.id),
       `Prise en contrôle de la dépense`, req.ip || '');
 
     res.json({ message: 'Dépense en cours de contrôle' });
@@ -223,10 +223,10 @@ router.put('/:id/controle', roleMiddleware('president', 'controleur'), (req: Aut
   }
 });
 
-router.put('/:id/valider', roleMiddleware('president', 'controleur'), (req: AuthRequest, res: Response) => {
+router.put('/:id/valider', roleMiddleware('president', 'controleur'), async (req: AuthRequest, res: Response) => {
   try {
     const db = getDb();
-    const depense = db.prepare('SELECT * FROM depenses WHERE id = ?').get(req.params.id) as any;
+    const depense = await db.prepare('SELECT * FROM depenses WHERE id = ?').get(req.params.id) as any;
 
     if (!depense) {
       res.status(404).json({ error: 'Dépense non trouvée' });
@@ -238,21 +238,21 @@ router.put('/:id/valider', roleMiddleware('president', 'controleur'), (req: Auth
       return;
     }
 
-    const caisse = db.prepare('SELECT * FROM caisses WHERE id = ?').get(depense.caisse_id) as any;
+    const caisse = await db.prepare('SELECT * FROM caisses WHERE id = ?').get(depense.caisse_id) as any;
     if (caisse && caisse.solde < depense.montant) {
       res.status(400).json({ error: 'Solde insuffisant dans la caisse pour valider cette dépense' });
       return;
     }
 
-    db.prepare('UPDATE depenses SET statut = \'validee\', date_modification = datetime(\'now\') WHERE id = ?').run(req.params.id);
-    db.prepare('UPDATE caisses SET solde = solde - ?, date_modification = datetime(\'now\') WHERE id = ?').run(depense.montant, depense.caisse_id);
+    await db.prepare('UPDATE depenses SET statut = \'validee\', date_modification = datetime(\'now\') WHERE id = ?').run(req.params.id);
+    await db.prepare('UPDATE caisses SET solde = solde - ?, date_modification = datetime(\'now\') WHERE id = ?').run(depense.montant, depense.caisse_id);
 
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO verifications (depense_id, verifie_par, action, commentaire)
       VALUES (?, ?, 'validee', 'Dépense validée')
     `).run(req.params.id, req.user!.id);
 
-    logAudit(req.user!.id, 'validation', 'depense', parseInt(req.params.id),
+    await logAudit(req.user!.id, 'validation', 'depense', parseInt(req.params.id),
       `Validation dépense de ${depense.montant} FCFA`, req.ip || '');
 
     res.json({ message: 'Dépense validée' });
@@ -262,11 +262,11 @@ router.put('/:id/valider', roleMiddleware('president', 'controleur'), (req: Auth
   }
 });
 
-router.put('/:id/rejeter', roleMiddleware('president', 'controleur'), (req: AuthRequest, res: Response) => {
+router.put('/:id/rejeter', roleMiddleware('president', 'controleur'), async (req: AuthRequest, res: Response) => {
   try {
     const { motif_rejet } = req.body;
     const db = getDb();
-    const depense = db.prepare('SELECT * FROM depenses WHERE id = ?').get(req.params.id) as any;
+    const depense = await db.prepare('SELECT * FROM depenses WHERE id = ?').get(req.params.id) as any;
 
     if (!depense) {
       res.status(404).json({ error: 'Dépense non trouvée' });
@@ -278,15 +278,15 @@ router.put('/:id/rejeter', roleMiddleware('president', 'controleur'), (req: Auth
       return;
     }
 
-    db.prepare('UPDATE depenses SET statut = \'rejetee\', motif_rejet = ?, date_modification = datetime(\'now\') WHERE id = ?')
+    await db.prepare('UPDATE depenses SET statut = \'rejetee\', motif_rejet = ?, date_modification = datetime(\'now\') WHERE id = ?')
       .run(motif_rejet || '', req.params.id);
 
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO verifications (depense_id, verifie_par, action, commentaire)
       VALUES (?, ?, 'rejetee', ?)
     `).run(req.params.id, req.user!.id, motif_rejet || 'Dépense rejetée');
 
-    logAudit(req.user!.id, 'rejet', 'depense', parseInt(req.params.id),
+    await logAudit(req.user!.id, 'rejet', 'depense', parseInt(req.params.id),
       `Rejet dépense de ${depense.montant} FCFA - ${motif_rejet || 'Aucun motif'}`, req.ip || '');
 
     res.json({ message: 'Dépense rejetée' });
@@ -296,25 +296,25 @@ router.put('/:id/rejeter', roleMiddleware('president', 'controleur'), (req: Auth
   }
 });
 
-router.put('/:id/correction', roleMiddleware('president', 'controleur'), (req: AuthRequest, res: Response) => {
+router.put('/:id/correction', roleMiddleware('president', 'controleur'), async (req: AuthRequest, res: Response) => {
   try {
     const { commentaire } = req.body;
     const db = getDb();
-    const depense = db.prepare('SELECT * FROM depenses WHERE id = ?').get(req.params.id) as any;
+    const depense = await db.prepare('SELECT * FROM depenses WHERE id = ?').get(req.params.id) as any;
 
     if (!depense) {
       res.status(404).json({ error: 'Dépense non trouvée' });
       return;
     }
 
-    db.prepare('UPDATE depenses SET statut = \'correction\', date_modification = datetime(\'now\') WHERE id = ?').run(req.params.id);
+    await db.prepare('UPDATE depenses SET statut = \'correction\', date_modification = datetime(\'now\') WHERE id = ?').run(req.params.id);
 
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO verifications (depense_id, verifie_par, action, commentaire)
       VALUES (?, ?, 'correction', ?)
     `).run(req.params.id, req.user!.id, commentaire || 'Correction demandée');
 
-    logAudit(req.user!.id, 'correction', 'depense', parseInt(req.params.id),
+    await logAudit(req.user!.id, 'correction', 'depense', parseInt(req.params.id),
       `Demande de correction - ${commentaire || 'Aucun commentaire'}`, req.ip || '');
 
     res.json({ message: 'Correction demandée' });
@@ -324,11 +324,11 @@ router.put('/:id/correction', roleMiddleware('president', 'controleur'), (req: A
   }
 });
 
-router.put('/:id/modifier', roleMiddleware('comptable'), (req: AuthRequest, res: Response) => {
+router.put('/:id/modifier', roleMiddleware('comptable'), async (req: AuthRequest, res: Response) => {
   try {
     const { montant, categorie, fournisseur, description, date_depense } = req.body;
     const db = getDb();
-    const depense = db.prepare('SELECT * FROM depenses WHERE id = ?').get(req.params.id) as any;
+    const depense = await db.prepare('SELECT * FROM depenses WHERE id = ?').get(req.params.id) as any;
 
     if (!depense) {
       res.status(404).json({ error: 'Dépense non trouvée' });
@@ -345,7 +345,7 @@ router.put('/:id/modifier', roleMiddleware('comptable'), (req: AuthRequest, res:
       return;
     }
 
-    db.prepare(`
+    await db.prepare(`
       UPDATE depenses SET montant=?, categorie=?, fournisseur=?, description=?, date_depense=?,
         statut='soumise', motif_rejet='', date_modification=datetime('now')
       WHERE id=?
@@ -353,12 +353,12 @@ router.put('/:id/modifier', roleMiddleware('comptable'), (req: AuthRequest, res:
       fournisseur || depense.fournisseur, description ?? depense.description,
       date_depense || depense.date_depense, req.params.id);
 
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO verifications (depense_id, verifie_par, action, commentaire)
       VALUES (?, ?, 'soumise', 'Dépense corrigée et resoumise')
     `).run(req.params.id, req.user!.id);
 
-    logAudit(req.user!.id, 'modification', 'depense', parseInt(req.params.id),
+    await logAudit(req.user!.id, 'modification', 'depense', parseInt(req.params.id),
       `Modification et resoumission de la dépense`, req.ip || '');
 
     res.json({ message: 'Dépense modifiée et resoumise' });

@@ -6,10 +6,10 @@ const router = Router();
 
 router.use(authMiddleware);
 
-router.get('/chantier/:chantierId', (req: AuthRequest, res: Response) => {
+router.get('/chantier/:chantierId', async (req: AuthRequest, res: Response) => {
   try {
     const db = getDb();
-    const caisses = db.prepare(`
+    const caisses = await db.prepare(`
       SELECT c.*,
         (SELECT COALESCE(SUM(montant), 0) FROM fonds WHERE caisse_id = c.id AND statut = 'valide') as total_fonds,
         (SELECT COALESCE(SUM(montant), 0) FROM depenses WHERE caisse_id = c.id AND statut = 'validee') as total_depenses
@@ -22,10 +22,10 @@ router.get('/chantier/:chantierId', (req: AuthRequest, res: Response) => {
   }
 });
 
-router.get('/:id', (req: AuthRequest, res: Response) => {
+router.get('/:id', async (req: AuthRequest, res: Response) => {
   try {
     const db = getDb();
-    const caisse = db.prepare(`
+    const caisse = await db.prepare(`
       SELECT c.*,
         (SELECT COALESCE(SUM(montant), 0) FROM fonds WHERE caisse_id = c.id AND statut = 'valide') as total_fonds,
         (SELECT COALESCE(SUM(montant), 0) FROM depenses WHERE caisse_id = c.id AND statut = 'validee') as total_depenses
@@ -43,7 +43,7 @@ router.get('/:id', (req: AuthRequest, res: Response) => {
   }
 });
 
-router.post('/', roleMiddleware('president', 'controleur'), (req: AuthRequest, res: Response) => {
+router.post('/', roleMiddleware('president', 'controleur'), async (req: AuthRequest, res: Response) => {
   try {
     const { chantier_id, nom } = req.body;
 
@@ -53,9 +53,9 @@ router.post('/', roleMiddleware('president', 'controleur'), (req: AuthRequest, r
     }
 
     const db = getDb();
-    const result = db.prepare('INSERT INTO caisses (chantier_id, nom) VALUES (?, ?)').run(chantier_id, nom);
+    const result = await db.prepare('INSERT INTO caisses (chantier_id, nom) VALUES (?, ?)').run(chantier_id, nom);
 
-    logAudit(req.user!.id, 'creation', 'caisse', result.lastInsertRowid as number,
+    await logAudit(req.user!.id, 'creation', 'caisse', result.lastInsertRowid as number,
       `Création caisse "${nom}" pour le chantier #${chantier_id}`, req.ip || '');
 
     res.status(201).json({ id: result.lastInsertRowid, chantier_id, nom, solde: 0 });
@@ -65,14 +65,14 @@ router.post('/', roleMiddleware('president', 'controleur'), (req: AuthRequest, r
   }
 });
 
-router.put('/:id', roleMiddleware('president', 'controleur'), (req: AuthRequest, res: Response) => {
+router.put('/:id', roleMiddleware('president', 'controleur'), async (req: AuthRequest, res: Response) => {
   try {
     const { nom } = req.body;
     const db = getDb();
 
-    db.prepare('UPDATE caisses SET nom=?, date_modification=datetime(\'now\') WHERE id=?').run(nom, req.params.id);
+    await db.prepare('UPDATE caisses SET nom=?, date_modification=datetime(\'now\') WHERE id=?').run(nom, req.params.id);
 
-    logAudit(req.user!.id, 'modification', 'caisse', parseInt(req.params.id),
+    await logAudit(req.user!.id, 'modification', 'caisse', parseInt(req.params.id),
       `Modification caisse`, req.ip || '');
 
     res.json({ message: 'Caisse mise à jour' });

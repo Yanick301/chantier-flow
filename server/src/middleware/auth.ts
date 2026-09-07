@@ -56,10 +56,14 @@ export function roleMiddleware(...roles: string[]) {
   };
 }
 
-export function logAudit(userId: number, action: string, entityType: string, entityId: number, details: string, ipAddress: string): void {
-  const db = getDb();
-  db.prepare(`
-    INSERT INTO audit_log (user_id, action, entity_type, entity_id, details, ip_address)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(userId, action, entityType, entityId, details, ipAddress);
+export async function logAudit(userId: number, action: string, entityType: string, entityId: number, details: string, ipAddress: string): Promise<void> {
+  try {
+    const db = getDb();
+    await db.prepare(`
+      INSERT INTO audit_log (user_id, action, entity_type, entity_id, details, ip_address)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(userId, action, entityType, entityId, details, ipAddress);
+  } catch (error) {
+    console.error('Erreur logAudit:', error);
+  }
 }
