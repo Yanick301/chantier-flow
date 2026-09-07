@@ -15,7 +15,7 @@ export default function Users() {
   const [toggleUser, setToggleUser] = useState<User | null>(null);
   const [resetPasswordUser, setResetPasswordUser] = useState<User | null>(null);
   const [form, setForm] = useState({
-    email: '', password: '', nom: '', prenom: '', telephone: '',
+    email: '', mot_de_passe: '', nom: '', prenom: '', telephone: '',
     role: 'comptable' as 'president' | 'controleur' | 'comptable',
   });
 
@@ -38,7 +38,7 @@ export default function Users() {
       await api.post('/users', form);
       toast.success('Utilisateur créé');
       setShowModal(false);
-      setForm({ email: '', password: '', nom: '', prenom: '', telephone: '', role: 'comptable' });
+      setForm({ email: '', mot_de_passe: '', nom: '', prenom: '', telephone: '', role: 'comptable' });
       loadUsers();
     } catch (error: any) {
       toast.error(error.message);
@@ -190,7 +190,7 @@ export default function Users() {
           </div>
           <div>
             <label className="label">Mot de passe</label>
-            <input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="input-field" required minLength={6} />
+              <input type="password" value={form.mot_de_passe} onChange={(e) => setForm({ ...form, mot_de_passe: e.target.value })} className="input-field" required minLength={6} />
           </div>
           <div>
             <label className="label">Téléphone</label>
