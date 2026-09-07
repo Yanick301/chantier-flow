@@ -1,33 +1,7 @@
 import { Router, Response } from 'express';
-import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
-import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../database/db';
 import { AuthRequest, authMiddleware, roleMiddleware, logAudit } from '../middleware/auth';
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, path.join(__dirname, '../../uploads'));
-  },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, `${uuidv4()}${ext}`);
-  }
-});
-
-const upload = multer({
-  storage,
-  limits: { fileSize: 10 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
-    if (allowedTypes.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Type de fichier non supporté'));
-    }
-  }
-});
+import { upload, deleteCloudinaryFile } from '../config/cloudinary';
 
 const router = Router();
 
@@ -68,11 +42,12 @@ router.post('/depense/:depenseId', upload.array('fichiers', 10), async (req: Aut
     const justificatifs = [];
     for (const file of files) {
       const typeFichier = file.mimetype === 'application/pdf' ? 'pdf' : 'image';
+      const filename = file.filename || file.path;
       const result = await db.prepare(`
         INSERT INTO justificatifs (depense_id, type_fichier, nom_fichier, nom_original, taille)
         VALUES (?, ?, ?, ?, ?)
-      `).run(req.params.depenseId, typeFichier, file.filename, file.originalname, file.size);
-      justificatifs.push({ id: result.lastInsertRowid, type_fichier: typeFichier, nom_original: file.originalname });
+      `).run(req.params.depenseId, typeFichier, filename, file.originalname, file.size);
+      justificatifs.push({ id: result.lastInsertRowid, type_fichier: typeFichier, nom_original: file.originalname, nom_fichier: filename });
     }
 
     await logAudit(req.user!.id, 'ajout_justificatif', 'depense', parseInt(req.params.depenseId),
@@ -95,8 +70,7 @@ router.get('/:id/fichier', async (req: AuthRequest, res: Response) => {
       return;
     }
 
-    const filePath = path.join(__dirname, '../../uploads', justificatif.nom_fichier);
-    res.sendFile(filePath);
+    res.redirect(justificatif.nom_fichier);
   } catch (error) {
     console.error('Erreur get fichier:', error);
     res.status(500).json({ error: 'Erreur serveur' });
@@ -119,10 +93,7 @@ router.delete('/:id', async (req: AuthRequest, res: Response) => {
       return;
     }
 
-    const filePath = path.join(__dirname, '../../uploads', justificatif.nom_fichier);
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
-    }
+    await deleteCloudinaryFile(justificatif.nom_fichier);
 
     await db.prepare('DELETE FROM justificatifs WHERE id = ?').run(req.params.id);
 
