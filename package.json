@@ -1,0 +1,14 @@
+{
+  "name": "chantier-flow",
+  "version": "1.0.0",
+  "description": "Chantier Flow - Application de contrôle financier",
+  "private": true,
+  "scripts": {
+    "build": "cd client && npm install && npm run build && cd ../server && npm install && npm run build",
+    "start": "cd server && node dist/index.js",
+    "install-all": "cd client && npm install && cd ../server && npm install"
+  },
+  "engines": {
+    "node": "18.x"
+  }
+}

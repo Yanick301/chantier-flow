@@ -1,0 +1,15 @@
+node_modules/
+dist/
+client/dist/
+server/dist/
+server/uploads/
+*.db
+.env
+.env.local
+logs/
+*.log
+.DS_Store
+server/chantier_flow.db-shm
+server/chantier_flow.db-wal
+server/chantier_flow.db
+logs/
