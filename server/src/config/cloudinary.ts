@@ -1,24 +1,20 @@
-import { v2 as cloudinary } from 'cloudinary';
-import { CloudinaryStorage } from 'multer-storage-cloudinary';
 import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
+const uploadsDir = path.resolve(__dirname, '../../uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
 
-const storage = new CloudinaryStorage({
-  cloudinary,
-  params: async (req, file) => {
-    const ext = file.originalname.split('.').pop();
-    const isPdf = file.mimetype === 'application/pdf';
-    return {
-      folder: 'chantier-flow/justificatifs',
-      resource_type: isPdf ? 'raw' : 'image',
-      format: isPdf ? 'pdf' : ext,
-      public_id: `${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
-    };
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadsDir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    const name = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}${ext}`;
+    cb(null, name);
   },
 });
 
@@ -35,16 +31,13 @@ export const upload = multer({
   },
 });
 
-export function getCloudinaryUrl(filename: string): string {
-  return filename;
-}
-
 export async function deleteCloudinaryFile(filename: string): Promise<void> {
   try {
-    await cloudinary.uploader.destroy(filename, {
-      resource_type: filename.endsWith('.pdf') ? 'raw' : 'image',
-    });
+    const filePath = path.join(uploadsDir, filename);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
   } catch (error) {
-    console.error('Erreur delete Cloudinary:', error);
+    console.error('Erreur delete fichier:', error);
   }
 }

@@ -1,8 +1,10 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import fs from 'fs';
+
+dotenv.config({ path: path.resolve(__dirname, '..', '.env') });
 import { initDb, getDb } from './database/db';
 import authRoutes from './routes/auth';
 import userRoutes from './routes/users';
@@ -34,6 +36,8 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
+import multer from 'multer';
+
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/chantiers', chantierRoutes);
@@ -43,6 +47,23 @@ app.use('/api/depenses', depenseRoutes);
 app.use('/api/justificatifs', justificatifRoutes);
 app.use('/api/stats', statsRoutes);
 app.use('/api/audit', auditRoutes);
+
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      res.status(400).json({ error: 'Fichier trop volumineux (max 10 Mo)' });
+      return;
+    }
+    res.status(400).json({ error: `Erreur upload: ${err.message}` });
+    return;
+  }
+  if (err.message === 'Type de fichier non supporté') {
+    res.status(400).json({ error: err.message });
+    return;
+  }
+  console.error('Erreur non gérée:', err);
+  res.status(500).json({ error: 'Erreur serveur' });
+});
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

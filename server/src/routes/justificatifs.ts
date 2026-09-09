@@ -42,12 +42,12 @@ router.post('/depense/:depenseId', upload.array('fichiers', 10), async (req: Aut
     const justificatifs = [];
     for (const file of files) {
       const typeFichier = file.mimetype === 'application/pdf' ? 'pdf' : 'image';
-      const filename = file.filename || file.path;
+      const fileUrl = `/uploads/${file.filename}`;
       const result = await db.prepare(`
         INSERT INTO justificatifs (depense_id, type_fichier, nom_fichier, nom_original, taille)
         VALUES (?, ?, ?, ?, ?)
-      `).run(req.params.depenseId, typeFichier, filename, file.originalname, file.size);
-      justificatifs.push({ id: result.lastInsertRowid, type_fichier: typeFichier, nom_original: file.originalname, nom_fichier: filename });
+      `).run(req.params.depenseId, typeFichier, fileUrl, file.originalname, file.size);
+      justificatifs.push({ id: result.lastInsertRowid, type_fichier: typeFichier, nom_original: file.originalname, nom_fichier: fileUrl });
     }
 
     await logAudit(req.user!.id, 'ajout_justificatif', 'depense', parseInt(req.params.depenseId),
@@ -70,7 +70,9 @@ router.get('/:id/fichier', async (req: AuthRequest, res: Response) => {
       return;
     }
 
-    res.redirect(justificatif.nom_fichier);
+    const filename = justificatif.nom_fichier.replace('/uploads/', '');
+    const filePath = require('path').resolve(__dirname, '../../uploads', filename);
+    res.sendFile(filePath);
   } catch (error) {
     console.error('Erreur get fichier:', error);
     res.status(500).json({ error: 'Erreur serveur' });
